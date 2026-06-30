@@ -103,6 +103,10 @@ function updatePlayerPanels() {
         const panel = playerStates[playerId].panel;
         if (panel) panel.classList.toggle("is-active", index < activePlayerCount);
     });
+
+    document.querySelectorAll(".touch-player-controls").forEach((control, index) => {
+        control.classList.toggle("is-active", index < activePlayerCount);
+    });
 }
 
 function updateControlUI() {
@@ -115,6 +119,17 @@ function updateControlUI() {
             }
         });
     });
+}
+
+function queueDirectionForPlayer(playerId, direction) {
+    const state = playerStates[playerId];
+    if (!state) return;
+
+    if (direction.x !== 0 && state.dir.x === 0) {
+        state.nextDir = direction;
+    } else if (direction.y !== 0 && state.dir.y === 0) {
+        state.nextDir = direction;
+    }
 }
 
 document.querySelectorAll(".key-binder").forEach((button) => {
@@ -142,12 +157,32 @@ window.addEventListener("keydown", (e) => {
     const pressedKey = e.key.toLowerCase();
 
     playerIds.slice(0, activePlayerCount).forEach((playerId) => {
-        const state = playerStates[playerId];
-        if (pressedKey === keys[playerId].up && state.dir.y === 0) state.nextDir = { x: 0, y: -1 };
-        if (pressedKey === keys[playerId].down && state.dir.y === 0) state.nextDir = { x: 0, y: 1 };
-        if (pressedKey === keys[playerId].left && state.dir.x === 0) state.nextDir = { x: -1, y: 0 };
-        if (pressedKey === keys[playerId].right && state.dir.x === 0) state.nextDir = { x: 1, y: 0 };
+        if (pressedKey === keys[playerId].up) queueDirectionForPlayer(playerId, { x: 0, y: -1 });
+        if (pressedKey === keys[playerId].down) queueDirectionForPlayer(playerId, { x: 0, y: 1 });
+        if (pressedKey === keys[playerId].left) queueDirectionForPlayer(playerId, { x: -1, y: 0 });
+        if (pressedKey === keys[playerId].right) queueDirectionForPlayer(playerId, { x: 1, y: 0 });
     });
+});
+
+document.querySelectorAll(".touch-btn").forEach((button) => {
+    const playerId = button.dataset.player;
+    const directionMap = {
+        up: { x: 0, y: -1 },
+        down: { x: 0, y: 1 },
+        left: { x: -1, y: 0 },
+        right: { x: 1, y: 0 }
+    };
+
+    const handleTouchInput = (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        queueDirectionForPlayer(playerId, directionMap[button.dataset.dir]);
+        if (!isGameRunning) startMatchExecution();
+    };
+
+    button.addEventListener("pointerdown", handleTouchInput);
+    button.addEventListener("touchstart", handleTouchInput);
+    button.addEventListener("click", handleTouchInput);
 });
 
 speedSlider.addEventListener("input", (e) => {
