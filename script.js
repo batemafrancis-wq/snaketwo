@@ -6,57 +6,118 @@ const actionBtn = document.getElementById("actionBtn");
 const speedSlider = document.getElementById("speedSlider");
 const speedValue = document.getElementById("speedValue");
 const clearHistoryBtn = document.getElementById("clearHistoryBtn");
-
-// Score & Color inputs
-const p1ScoreEl = document.getElementById("p1-score");
-const p2ScoreEl = document.getElementById("p2-score");
-const p1WinsEl = document.getElementById("p1-wins");
-const p2WinsEl = document.getElementById("p2-wins");
-const p1ColorPicker = document.getElementById("p1-color-picker");
-const p2ColorPicker = document.getElementById("p2-color-picker");
+const playerCountSelect = document.getElementById("playerCount");
+const goalInput = document.getElementById("goalInput");
 
 const GRID_SIZE = 20;
-const TILE_COUNT = canvas.width / GRID_SIZE; 
+const TILE_COUNT = canvas.width / GRID_SIZE;
+const playerIds = ["p1", "p2", "p3", "p4"];
+
+const defaultColors = {
+    p1: "#10b981",
+    p2: "#3b82f6",
+    p3: "#f59e0b",
+    p4: "#ef4444"
+};
+
+const defaultKeys = {
+    p1: { up: "arrowup", down: "arrowdown", left: "arrowleft", right: "arrowright" },
+    p2: { up: "w", down: "s", left: "a", right: "d" },
+    p3: { up: "i", down: "k", left: "j", right: "l" },
+    p4: { up: "t", down: "g", left: "f", right: "h" }
+};
+
+const spawnConfig = {
+    p1: { x: 3, y: 3, dir: { x: 1, y: 0 } },
+    p2: { x: 16, y: 3, dir: { x: -1, y: 0 } },
+    p3: { x: 3, y: 16, dir: { x: 1, y: 0 } },
+    p4: { x: 16, y: 16, dir: { x: -1, y: 0 } }
+};
+
+const playerNames = {
+    p1: "Player One",
+    p2: "Player Two",
+    p3: "Player Three",
+    p4: "Player Four"
+};
 
 let gameInterval = null;
 let gameSpeed = parseInt(localStorage.getItem("snake_speed")) || 100;
 let isGameRunning = false;
-
-let food;
-let snake1, snake2;
-let dir1, dir2;
-let nextDir1, nextDir2; 
-
-// Track wins via cache persistence
-let wins = { p1: parseInt(localStorage.getItem("w_p1")) || 0, p2: parseInt(localStorage.getItem("w_p2")) || 0 };
-
-const defaultKeys = {
-    p1: { up: "arrowup", down: "arrowdown", left: "arrowleft", right: "arrowright" },
-    p2: { up: "w", down: "s", left: "a", right: "d" }
-};
-
-let keys = JSON.parse(localStorage.getItem("snake_keys")) || defaultKeys;
+let food = null;
+let goalCount = parseInt(localStorage.getItem("snake_goal")) || 10;
+let activePlayerCount = parseInt(localStorage.getItem("snake_player_count")) || 4;
+let playerStates = {};
 let activeBinderButton = null;
 
-// Dynamic Badge Styling Helper
-function updateBadgeColors() {
-    document.querySelector(".p1-badge").style.backgroundColor = p1ColorPicker.value;
-    document.querySelector(".p2-badge").style.backgroundColor = p2ColorPicker.value;
-    document.querySelectorAll(".text-p1").forEach(el => el.style.color = p1ColorPicker.value);
-    document.querySelectorAll(".text-p2").forEach(el => el.style.color = p2ColorPicker.value);
+let wins = {};
+playerIds.forEach((playerId) => {
+    wins[playerId] = parseInt(localStorage.getItem(`w_${playerId}`)) || 0;
+});
+
+let keys = JSON.parse(localStorage.getItem("snake_keys")) || {};
+keys = {
+    p1: { ...defaultKeys.p1, ...(keys.p1 || {}) },
+    p2: { ...defaultKeys.p2, ...(keys.p2 || {}) },
+    p3: { ...defaultKeys.p3, ...(keys.p3 || {}) },
+    p4: { ...defaultKeys.p4, ...(keys.p4 || {}) }
+};
+
+function initPlayerStates() {
+    playerIds.forEach((playerId) => {
+        const colorPicker = document.getElementById(`${playerId}-color-picker`);
+        const scoreEl = document.getElementById(`${playerId}-score`);
+        const winsEl = document.getElementById(`${playerId}-wins`);
+        const badge = document.getElementById(`${playerId}-badge`);
+        const panel = document.querySelector(`.${playerId}-panel`);
+        const storedColor = localStorage.getItem(`snake_${playerId}_col`) || defaultColors[playerId];
+
+        colorPicker.value = storedColor;
+        playerStates[playerId] = {
+            snake: [],
+            dir: { x: 0, y: 0 },
+            nextDir: { x: 0, y: 0 },
+            eaten: 0,
+            scoreEl,
+            winsEl,
+            colorPicker,
+            badge,
+            panel
+        };
+    });
 }
 
-function updateControlUI() {
-    Object.keys(keys).forEach(player => {
-        Object.keys(keys[player]).forEach(direction => {
-            const btn = document.getElementById(`${player}-${direction}`);
-            if (btn) btn.innerText = keys[player][direction] === " " ? "Space" : keys[player][direction];
+function updateBadgeColors() {
+    playerIds.forEach((playerId) => {
+        const color = playerStates[playerId].colorPicker.value;
+        const badge = document.getElementById(`${playerId}-badge`);
+        if (badge) badge.style.backgroundColor = color;
+        document.querySelectorAll(`.text-${playerId}`).forEach((el) => {
+            el.style.color = color;
         });
     });
 }
 
-// Map Remap Interaction Event Click Rules
-document.querySelectorAll(".key-binder").forEach(button => {
+function updatePlayerPanels() {
+    playerIds.forEach((playerId, index) => {
+        const panel = playerStates[playerId].panel;
+        if (panel) panel.classList.toggle("is-active", index < activePlayerCount);
+    });
+}
+
+function updateControlUI() {
+    playerIds.forEach((playerId) => {
+        Object.keys(keys[playerId]).forEach((direction) => {
+            const btn = document.getElementById(`${playerId}-${direction}`);
+            if (btn) {
+                const displayValue = keys[playerId][direction] === " " ? "Space" : keys[playerId][direction].toUpperCase();
+                btn.innerText = displayValue;
+            }
+        });
+    });
+}
+
+document.querySelectorAll(".key-binder").forEach((button) => {
     button.addEventListener("click", (e) => {
         if (activeBinderButton) activeBinderButton.classList.remove("listening");
         activeBinderButton = e.target;
@@ -65,13 +126,13 @@ document.querySelectorAll(".key-binder").forEach(button => {
     });
 });
 
-window.addEventListener("keydown", e => {
+window.addEventListener("keydown", (e) => {
     if (activeBinderButton) {
         e.preventDefault();
         const [player, direction] = activeBinderButton.id.split("-");
         keys[player][direction] = e.key.toLowerCase();
         localStorage.setItem("snake_keys", JSON.stringify(keys));
-        
+
         updateControlUI();
         activeBinderButton.classList.remove("listening");
         activeBinderButton = null;
@@ -80,17 +141,13 @@ window.addEventListener("keydown", e => {
 
     const pressedKey = e.key.toLowerCase();
 
-    // Player 1 input matching
-    if ((pressedKey === keys.p1.up) && dir1.y === 0) nextDir1 = {x: 0, y: -1};
-    if ((pressedKey === keys.p1.down) && dir1.y === 0) nextDir1 = {x: 0, y: 1};
-    if ((pressedKey === keys.p1.left) && dir1.x === 0) nextDir1 = {x: -1, y: 0};
-    if ((pressedKey === keys.p1.right) && dir1.x === 0) nextDir1 = {x: 1, y: 0};
-
-    // Player 2 input matching
-    if ((pressedKey === keys.p2.up) && dir2.y === 0) nextDir2 = {x: 0, y: -1};
-    if ((pressedKey === keys.p2.down) && dir2.y === 0) nextDir2 = {x: 0, y: 1};
-    if ((pressedKey === keys.p2.left) && dir2.x === 0) nextDir2 = {x: -1, y: 0};
-    if ((pressedKey === keys.p2.right) && dir2.x === 0) nextDir2 = {x: 1, y: 0};
+    playerIds.slice(0, activePlayerCount).forEach((playerId) => {
+        const state = playerStates[playerId];
+        if (pressedKey === keys[playerId].up && state.dir.y === 0) state.nextDir = { x: 0, y: -1 };
+        if (pressedKey === keys[playerId].down && state.dir.y === 0) state.nextDir = { x: 0, y: 1 };
+        if (pressedKey === keys[playerId].left && state.dir.x === 0) state.nextDir = { x: -1, y: 0 };
+        if (pressedKey === keys[playerId].right && state.dir.x === 0) state.nextDir = { x: 1, y: 0 };
+    });
 });
 
 speedSlider.addEventListener("input", (e) => {
@@ -103,57 +160,91 @@ speedSlider.addEventListener("input", (e) => {
     }
 });
 
-p1ColorPicker.addEventListener("input", () => {
-    localStorage.setItem("snake_p1_col", p1ColorPicker.value);
-    updateBadgeColors();
-    draw();
+playerIds.forEach((playerId) => {
+    const colorPicker = document.getElementById(`${playerId}-color-picker`);
+    colorPicker.addEventListener("input", () => {
+        localStorage.setItem(`snake_${playerId}_col`, colorPicker.value);
+        updateBadgeColors();
+        draw();
+    });
 });
-p2ColorPicker.addEventListener("input", () => {
-    localStorage.setItem("snake_p2_col", p2ColorPicker.value);
-    updateBadgeColors();
-    draw();
+
+playerCountSelect.addEventListener("change", () => {
+    activePlayerCount = parseInt(playerCountSelect.value) || 2;
+    localStorage.setItem("snake_player_count", activePlayerCount);
+    updatePlayerPanels();
+    if (!isGameRunning) draw();
+});
+
+goalInput.addEventListener("change", () => {
+    goalCount = Math.max(1, parseInt(goalInput.value) || 10);
+    goalInput.value = goalCount;
+    localStorage.setItem("snake_goal", goalCount);
 });
 
 clearHistoryBtn.addEventListener("click", () => {
-    wins = { p1: 0, p2: 0 };
+    wins = { p1: 0, p2: 0, p3: 0, p4: 0 };
     localStorage.setItem("w_p1", 0);
     localStorage.setItem("w_p2", 0);
-    p1WinsEl.innerText = 0;
-    p2WinsEl.innerText = 0;
+    localStorage.setItem("w_p3", 0);
+    localStorage.setItem("w_p4", 0);
+    playerIds.forEach((playerId) => {
+        playerStates[playerId].winsEl.innerText = 0;
+    });
 });
 
 function initConfigSettings() {
-    p1ColorPicker.value = localStorage.getItem("snake_p1_col") || "#10b981";
-    p2ColorPicker.value = localStorage.getItem("snake_p2_col") || "#3b82f6";
-    
+    initPlayerStates();
+
+    playerCountSelect.value = activePlayerCount;
+    goalInput.value = goalCount;
     speedSlider.value = gameSpeed;
     speedValue.innerText = `${gameSpeed}ms`;
 
-    p1WinsEl.innerText = wins.p1;
-    p2WinsEl.innerText = wins.p2;
+    playerIds.forEach((playerId) => {
+        playerStates[playerId].winsEl.innerText = wins[playerId];
+        playerStates[playerId].scoreEl.innerText = 0;
+    });
 
+    updatePlayerPanels();
     updateControlUI();
     updateBadgeColors();
     draw();
 }
 
 function startMatchExecution() {
+    activePlayerCount = parseInt(playerCountSelect.value) || 2;
+    goalCount = Math.max(1, parseInt(goalInput.value) || 10);
+    goalInput.value = goalCount;
+    localStorage.setItem("snake_player_count", activePlayerCount);
+    localStorage.setItem("snake_goal", goalCount);
+    updatePlayerPanels();
+
     gameOverlay.classList.add("hidden");
     isGameRunning = true;
-    
-    // Crucial Engine Fix: Initial head indices mapped accurately via array index brackets [0]
-    snake1 = [{x: 5, y: 5}, {x: 4, y: 5}, {x: 3, y: 5}];
-    dir1 = {x: 1, y: 0}; nextDir1 = {x: 1, y: 0};
 
-    snake2 = [{x: 24, y: 24}, {x: 25, y: 24}, {x: 26, y: 24}];
-    dir2 = {x: -1, y: 0}; nextDir2 = {x: -1, y: 0};
+    playerIds.forEach((playerId) => {
+        const state = playerStates[playerId];
+        const spawn = spawnConfig[playerId];
+        const direction = { ...spawn.dir };
 
-    p1ScoreEl.innerText = snake1.length;
-    p2ScoreEl.innerText = snake2.length;
+        state.snake = [];
+        for (let i = 0; i < 3; i++) {
+            state.snake.push({
+                x: spawn.x - (direction.x * i),
+                y: spawn.y - (direction.y * i)
+            });
+        }
+
+        state.dir = { ...direction };
+        state.nextDir = { ...direction };
+        state.eaten = 0;
+        state.scoreEl.innerText = 0;
+    });
 
     spawnFood();
     clearInterval(gameInterval);
-    gameInterval = setInterval(gameLoop, gameSpeed); 
+    gameInterval = setInterval(gameLoop, gameSpeed);
 }
 
 function spawnFood() {
@@ -161,40 +252,56 @@ function spawnFood() {
         x: Math.floor(Math.random() * TILE_COUNT),
         y: Math.floor(Math.random() * TILE_COUNT)
     };
-    if (isOnSnake(food, snake1) || isOnSnake(food, snake2)) {
+
+    const occupied = playerIds.slice(0, activePlayerCount).some((playerId) => {
+        return isOnSnake(food, playerStates[playerId].snake);
+    });
+
+    if (occupied) {
         spawnFood();
     }
 }
 
 function isOnSnake(pos, snake) {
-    return snake.some(segment => segment.x === pos.x && segment.y === pos.y);
+    return snake.some((segment) => segment.x === pos.x && segment.y === pos.y);
 }
 
 function gameLoop() {
-    dir1 = nextDir1;
-    dir2 = nextDir2;
+    const activeIds = playerIds.slice(0, activePlayerCount);
+    let foodWasEaten = false;
 
-    // Fixed array reference syntax parsing bugs safely
-    const head1 = {x: snake1[0].x + dir1.x, y: snake1[0].y + dir1.y};
-    const head2 = {x: snake2[0].x + dir2.x, y: snake2[0].y + dir2.y};
+    activeIds.forEach((playerId) => {
+        const state = playerStates[playerId];
+        state.dir = state.nextDir;
 
-    let p1Ate = (head1.x === food.x && head1.y === food.y);
-    let p2Ate = (head2.x === food.x && head2.y === food.y);
+        const head = {
+            x: state.snake[0].x + state.dir.x,
+            y: state.snake[0].y + state.dir.y
+        };
 
-    snake1.unshift(head1);
-    if (!p1Ate) snake1.pop(); else p1ScoreEl.innerText = snake1.length;
+        const ateFood = (head.x === food.x && head.y === food.y);
+        state.snake.unshift(head);
 
-    snake2.unshift(head2);
-    if (!p2Ate) snake2.pop(); else p2ScoreEl.innerText = snake2.length;
+        if (ateFood) {
+            state.eaten += 1;
+            state.scoreEl.innerText = state.eaten;
+            foodWasEaten = true;
+        } else {
+            state.snake.pop();
+        }
+    });
 
-    if (p1Ate || p2Ate) spawnFood();
+    const winnerByGoal = activeIds.find((playerId) => playerStates[playerId].eaten >= goalCount);
+    if (winnerByGoal) {
+        terminateGame(winnerByGoal);
+        return;
+    }
 
-    // Pass-through check rules modification: only checking edge constraints & self-collisions
-    let p1Dead = checkSelfAndEdgeCollision(snake1);
-    let p2Dead = checkSelfAndEdgeCollision(snake2);
+    if (foodWasEaten) spawnFood();
 
-    if (p1Dead || p2Dead) {
-        terminateGame(p1Dead, p2Dead);
+    const deadPlayers = activeIds.filter((playerId) => checkSelfAndEdgeCollision(playerStates[playerId].snake));
+    if (deadPlayers.length > 0) {
+        terminateGame(null);
         return;
     }
 
@@ -203,34 +310,37 @@ function gameLoop() {
 
 function checkSelfAndEdgeCollision(snake) {
     const head = snake[0];
-    // Wall limits lethal check
     if (head.x < 0 || head.x >= TILE_COUNT || head.y < 0 || head.y >= TILE_COUNT) return true;
-    // Self execution bite check ONLY (skipping index 0 header segment element)
     for (let i = 1; i < snake.length; i++) {
         if (head.x === snake[i].x && head.y === snake[i].y) return true;
     }
     return false;
 }
 
-function terminateGame(p1Dead, p2Dead) {
+function terminateGame(winnerId = null) {
     clearInterval(gameInterval);
     isGameRunning = false;
-    
+
     gameOverlay.classList.remove("hidden");
     actionBtn.innerText = "Execute Rematch";
-    
-    if (p1Dead && p2Dead) {
-        overlayText.innerText = "Mutual Destruction!";
-    } else if (p1Dead) {
-        overlayText.innerText = "Player 2 Dominates!";
-        wins.p2++;
-        localStorage.setItem("w_p2", wins.p2);
-        p2WinsEl.innerText = wins.p2;
+
+    if (winnerId) {
+        overlayText.innerText = `${playerNames[winnerId]} reaches ${goalCount} food!`;
+        wins[winnerId] += 1;
+        localStorage.setItem(`w_${winnerId}`, wins[winnerId]);
+        playerStates[winnerId].winsEl.innerText = wins[winnerId];
+        return;
+    }
+
+    const leader = playerIds
+        .slice(0, activePlayerCount)
+        .slice()
+        .sort((a, b) => playerStates[b].eaten - playerStates[a].eaten)[0];
+
+    if (leader) {
+        overlayText.innerText = `${playerNames[leader]} leads the board`;
     } else {
-        overlayText.innerText = "Player 1 Dominates!";
-        wins.p1++;
-        localStorage.setItem("w_p1", wins.p1);
-        p1WinsEl.innerText = wins.p1;
+        overlayText.innerText = "No clear winner";
     }
 }
 
@@ -238,23 +348,20 @@ function draw() {
     ctx.fillStyle = getComputedStyle(document.body).getPropertyValue("--canvas-bg").trim();
     ctx.fillRect(0, 0, canvas.width, canvas.height);
 
-    // Food Render
     ctx.fillStyle = getComputedStyle(document.body).getPropertyValue("--food-color").trim();
     ctx.fillRect(food ? food.x * GRID_SIZE + 1 : 0, food ? food.y * GRID_SIZE + 1 : 0, GRID_SIZE - 2, GRID_SIZE - 2);
 
-    // Dynamic Engine render fetches values actively assigned in color elements
-    if (snake1) {
-        ctx.fillStyle = p1ColorPicker.value;
-        snake1.forEach(seg => ctx.fillRect(seg.x * GRID_SIZE + 1, seg.y * GRID_SIZE + 1, GRID_SIZE - 2, GRID_SIZE - 2));
-    }
-
-    if (snake2) {
-        ctx.fillStyle = p2ColorPicker.value;
-        snake2.forEach(seg => ctx.fillRect(seg.x * GRID_SIZE + 1, seg.y * GRID_SIZE + 1, GRID_SIZE - 2, GRID_SIZE - 2));
-    }
+    playerIds.slice(0, activePlayerCount).forEach((playerId) => {
+        const state = playerStates[playerId];
+        if (state.snake && state.snake.length) {
+            ctx.fillStyle = state.colorPicker.value;
+            state.snake.forEach((segment) => {
+                ctx.fillRect(segment.x * GRID_SIZE + 1, segment.y * GRID_SIZE + 1, GRID_SIZE - 2, GRID_SIZE - 2);
+            });
+        }
+    });
 }
 
 actionBtn.addEventListener("click", startMatchExecution);
 
-// Bootstrap
 initConfigSettings();

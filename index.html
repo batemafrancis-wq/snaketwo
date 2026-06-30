@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>Arcade Snake PRO: Head to Head</title>
     <link rel="preconnect" href="https://googleapis.com">
     <link rel="preconnect" href="https://gstatic.com" crossorigin>
@@ -16,6 +16,19 @@
             <h1>SNAKE<span>VS</span>SNAKE</h1>
             <div class="global-controls">
                 <div class="control-group">
+                    <label for="playerCount">Players</label>
+                    <select id="playerCount">
+                        <option value="1">1 Player</option>
+                        <option value="2">2 Players</option>
+                        <option value="3">3 Players</option>
+                        <option value="4" selected>4 Players</option>
+                    </select>
+                </div>
+                <div class="control-group">
+                    <label for="goalInput">Goal</label>
+                    <input type="number" id="goalInput" min="1" max="50" value="10">
+                </div>
+                <div class="control-group">
                     <label for="speedSlider">Engine Speed: <span id="speedValue">100ms</span></label>
                     <input type="range" id="speedSlider" min="50" max="200" step="10" value="100">
                 </div>
@@ -24,87 +37,147 @@
         </header>
 
         <main class="game-layout">
-            <!-- Left Panel: Player 1 Config & Scores -->
-            <section class="side-panel p1-panel">
-                <div class="panel-header">
-                    <div class="badge p1-badge">P1</div>
-                    <h2>Player One</h2>
-                </div>
-                <div class="stats-grid">
-                    <div class="stat-card">
-                        <span class="label">Live Length</span>
-                        <span id="p1-score" class="value text-p1">3</span>
+            <section class="side-panel-stack">
+                <section class="side-panel p1-panel is-active">
+                    <div class="panel-header">
+                        <div class="badge p1-badge" id="p1-badge">P1</div>
+                        <h2>Player One</h2>
                     </div>
-                    <div class="stat-card">
-                        <span class="label">Match Wins</span>
-                        <span id="p1-wins" class="value text-p1">0</span>
+                    <div class="stats-grid">
+                        <div class="stat-card">
+                            <span class="label">Food Eaten</span>
+                            <span id="p1-score" class="value text-p1">0</span>
+                        </div>
+                        <div class="stat-card">
+                            <span class="label">Match Wins</span>
+                            <span id="p1-wins" class="value text-p1">0</span>
+                        </div>
                     </div>
-                </div>
-                
-                <div class="control-group">
-                    <label>Skin Customization</label>
-                    <input type="color" id="p1-color-picker" value="#10b981">
-                </div>
 
-                <div class="binding-list">
-                    <h3>Controls</h3>
-                    <div class="key-row"><span>Move Up</span><button id="p1-up" class="key-binder">ArrowUp</button></div>
-                    <div class="key-row"><span>Move Down</span><button id="p1-down" class="key-binder">ArrowDown</button></div>
-                    <div class="key-row"><span>Move Left</span><button id="p1-left" class="key-binder">ArrowLeft</button></div>
-                    <div class="key-row"><span>Move Right</span><button id="p1-right" class="key-binder">ArrowRight</button></div>
-                </div>
+                    <div class="control-group">
+                        <label>Skin Customization</label>
+                        <input type="color" id="p1-color-picker" value="#10b981">
+                    </div>
+
+                    <div class="binding-list">
+                        <h3>Controls</h3>
+                        <div class="key-row"><span>Move Up</span><button id="p1-up" class="key-binder">ArrowUp</button></div>
+                        <div class="key-row"><span>Move Down</span><button id="p1-down" class="key-binder">ArrowDown</button></div>
+                        <div class="key-row"><span>Move Left</span><button id="p1-left" class="key-binder">ArrowLeft</button></div>
+                        <div class="key-row"><span>Move Right</span><button id="p1-right" class="key-binder">ArrowRight</button></div>
+                    </div>
+                </section>
+
+                <section class="side-panel p2-panel is-active">
+                    <div class="panel-header">
+                        <div class="badge p2-badge" id="p2-badge">P2</div>
+                        <h2>Player Two</h2>
+                    </div>
+                    <div class="stats-grid">
+                        <div class="stat-card">
+                            <span class="label">Food Eaten</span>
+                            <span id="p2-score" class="value text-p2">0</span>
+                        </div>
+                        <div class="stat-card">
+                            <span class="label">Match Wins</span>
+                            <span id="p2-wins" class="value text-p2">0</span>
+                        </div>
+                    </div>
+
+                    <div class="control-group">
+                        <label>Skin Customization</label>
+                        <input type="color" id="p2-color-picker" value="#3b82f6">
+                    </div>
+
+                    <div class="binding-list">
+                        <h3>Controls</h3>
+                        <div class="key-row"><span>Move Up</span><button id="p2-up" class="key-binder">w</button></div>
+                        <div class="key-row"><span>Move Down</span><button id="p2-down" class="key-binder">s</button></div>
+                        <div class="key-row"><span>Move Left</span><button id="p2-left" class="key-binder">a</button></div>
+                        <div class="key-row"><span>Move Right</span><button id="p2-right" class="key-binder">d</button></div>
+                    </div>
+                </section>
             </section>
 
-            <!-- Center Arena Component -->
             <section class="arena">
                 <div class="canvas-wrapper">
                     <canvas id="gameCanvas" width="600" height="600"></canvas>
-                    
-                    <!-- Unified Start / Game Over Screen Overlay -->
+
                     <div id="gameOverlay" class="overlay">
                         <div class="overlay-content">
                             <span class="sub-title">Arcade Simulation</span>
-                            <h2 id="overlayText">Ready Player One & Two</h2>
+                            <h2 id="overlayText">Ready for 4-way action</h2>
                             <button id="actionBtn" class="action-btn">Initialize Engine</button>
                         </div>
                     </div>
                 </div>
             </section>
 
-            <!-- Right Panel: Player 2 Config & Scores -->
-            <section class="side-panel p2-panel">
-                <div class="panel-header">
-                    <div class="badge p2-badge">P2</div>
-                    <h2>Player Two</h2>
-                </div>
-                <div class="stats-grid">
-                    <div class="stat-card">
-                        <span class="label">Live Length</span>
-                        <span id="p2-score" class="value text-p2">3</span>
+            <section class="side-panel-stack">
+                <section class="side-panel p3-panel">
+                    <div class="panel-header">
+                        <div class="badge p3-badge" id="p3-badge">P3</div>
+                        <h2>Player Three</h2>
                     </div>
-                    <div class="stat-card">
-                        <span class="label">Match Wins</span>
-                        <span id="p2-wins" class="value text-p2">0</span>
+                    <div class="stats-grid">
+                        <div class="stat-card">
+                            <span class="label">Food Eaten</span>
+                            <span id="p3-score" class="value text-p3">0</span>
+                        </div>
+                        <div class="stat-card">
+                            <span class="label">Match Wins</span>
+                            <span id="p3-wins" class="value text-p3">0</span>
+                        </div>
                     </div>
-                </div>
 
-                <div class="control-group">
-                    <label>Skin Customization</label>
-                    <input type="color" id="p2-color-picker" value="#3b82f6">
-                </div>
+                    <div class="control-group">
+                        <label>Skin Customization</label>
+                        <input type="color" id="p3-color-picker" value="#f59e0b">
+                    </div>
 
-                <div class="binding-list">
-                    <h3>Controls</h3>
-                    <div class="key-row"><span>Move Up</span><button id="p2-up" class="key-binder">w</button></div>
-                    <div class="key-row"><span>Move Down</span><button id="p2-down" class="key-binder">s</button></div>
-                    <div class="key-row"><span>Move Left</span><button id="p2-left" class="key-binder">a</button></div>
-                    <div class="key-row"><span>Move Right</span><button id="p2-right" class="key-binder">d</button></div>
-                </div>
+                    <div class="binding-list">
+                        <h3>Controls</h3>
+                        <div class="key-row"><span>Move Up</span><button id="p3-up" class="key-binder">i</button></div>
+                        <div class="key-row"><span>Move Down</span><button id="p3-down" class="key-binder">k</button></div>
+                        <div class="key-row"><span>Move Left</span><button id="p3-left" class="key-binder">j</button></div>
+                        <div class="key-row"><span>Move Right</span><button id="p3-right" class="key-binder">l</button></div>
+                    </div>
+                </section>
+
+                <section class="side-panel p4-panel">
+                    <div class="panel-header">
+                        <div class="badge p4-badge" id="p4-badge">P4</div>
+                        <h2>Player Four</h2>
+                    </div>
+                    <div class="stats-grid">
+                        <div class="stat-card">
+                            <span class="label">Food Eaten</span>
+                            <span id="p4-score" class="value text-p4">0</span>
+                        </div>
+                        <div class="stat-card">
+                            <span class="label">Match Wins</span>
+                            <span id="p4-wins" class="value text-p4">0</span>
+                        </div>
+                    </div>
+
+                    <div class="control-group">
+                        <label>Skin Customization</label>
+                        <input type="color" id="p4-color-picker" value="#ef4444">
+                    </div>
+
+                    <div class="binding-list">
+                        <h3>Controls</h3>
+                        <div class="key-row"><span>Move Up</span><button id="p4-up" class="key-binder">t</button></div>
+                        <div class="key-row"><span>Move Down</span><button id="p4-down" class="key-binder">g</button></div>
+                        <div class="key-row"><span>Move Left</span><button id="p4-left" class="key-binder">f</button></div>
+                        <div class="key-row"><span>Move Right</span><button id="p4-right" class="key-binder">h</button></div>
+                    </div>
+                </section>
             </section>
         </main>
-        
+
         <footer>
-            <p>Pass-through active: You can cross paths with your rival safely. Biting your own tail or hitting edges is lethal.</p>
+            <p>Each match now runs to a food goal. The first player to reach the target wins the round.</p>
         </footer>
     </div>
 
